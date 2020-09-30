@@ -7,9 +7,9 @@ name: Upload SALib Python Package pre-release to PyPI and TestPyPI
 on: 
   push:
     branches:
-      - "develop"
+      - develop
     tags:
-      - "*dev*"
+      - v*.*dev*
 
   check_suite:
     types:
