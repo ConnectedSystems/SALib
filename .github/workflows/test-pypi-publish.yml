@@ -32,7 +32,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.TEST_PYPI }}
       run: |
-        pip install --user --upgrade twine
+        pip install --user --upgrade wheel twine
         python setup.py sdist bdist_wheel
         twine upload dist/* --repository testpypi
 
