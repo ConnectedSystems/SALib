@@ -34,6 +34,6 @@ jobs:
       run: |
         pip install --user --upgrade wheel twine
         python setup.py sdist bdist_wheel
-        twine upload dist/* --repository testpypi
+        python -m twine upload dist/* --repository testpypi
 
         
