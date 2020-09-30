@@ -6,10 +6,8 @@ name: Upload SALib Python Package pre-release to PyPI and TestPyPI
 
 on: 
   push:
-    branches:
-      - develop
-    tags:
-      - v*.*dev*
+    tags: v*.*dev*
+    branches: develop
 
   check_suite:
     types:
@@ -23,11 +21,13 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: Set up Python 3.7
+      if: startsWith( github.ref, 'refs/tags/v*.*dev*/')
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
 
     - name: Build and publish
+      if: startsWith( github.ref, 'refs/tags/v*.*dev*/')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.TEST_PYPI }}
