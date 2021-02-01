@@ -86,6 +86,7 @@ def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray,
     groups = _check_groups(problem)
     if not groups:
         number_of_groups = num_vars
+        unique_group_names = problem['names']
     else:
         groups, unique_group_names = compute_groups_matrix(groups)
         number_of_groups = len(set(unique_group_names))
