@@ -4,10 +4,11 @@ from scipy.stats import norm, gaussian_kde, rankdata
 import numpy as np
 
 from . import common_args
-from ..util import read_param_file, ResultDict
+from ..util import (read_param_file, ResultDict, _check_groups,
+                    extract_group_names, compute_groups_matrix)
 
 
-def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray, 
+def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray,
             num_resamples: int = 100, conf_level: float = 0.95,
             print_to_console: bool = False, seed: int = None) -> Dict:
     """Perform Delta Moment-Independent Analysis on model outputs.
@@ -59,7 +60,13 @@ def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray,
     if seed:
         np.random.seed(seed)
 
-    D = problem['num_vars']
+    groups = _check_groups(problem)
+    if not groups:
+        D = problem['num_vars']
+    else:
+        group_names, D = extract_group_names(groups)
+        groupings, _ = compute_groups_matrix(problem['groups'])
+
     N = Y.size
 
     if not 0 < conf_level < 1:
@@ -67,17 +74,22 @@ def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray,
 
     # equal frequency partition
     exp = (2.0 / (7.0 + np.tanh((1500.0 - N) / 500.0)))
-    M = int(np.round( min(int(np.ceil(N**exp)), 48) ))
+    M = int(np.round(min(int(np.ceil(N**exp)), 48)))
     m = np.linspace(0, N, M + 1)
     Ygrid = np.linspace(np.min(Y), np.max(Y), 100)
 
     keys = ('delta', 'delta_conf', 'S1', 'S1_conf')
     S = ResultDict((k, np.zeros(D)) for k in keys)
-    S['names'] = problem['names']
 
+    groupings = np.array(groupings, dtype=bool).T
     try:
         for i in range(D):
-            X_i = X[:, i]
+            if not groups:
+                X_i = X[:, i]
+            else:
+                membership = groupings[i]
+                X_i = X[:, membership]
+
             S['delta'][i], S['delta_conf'][i] = bias_reduced_delta(
                 Y, Ygrid, X_i, m, num_resamples, conf_level)
             S['S1'][i] = sobol_first(Y, X_i, m)
@@ -85,11 +97,17 @@ def analyze(problem: Dict, X: np.ndarray, Y: np.ndarray,
                 Y, X_i, m, num_resamples, conf_level)
     except np.linalg.LinAlgError as e:
         msg = "Singular matrix detected\n"
-        msg += "This may be due to the sample size ({}) being too small\n".format(Y.size)
+        msg += "This may be due to the sample size ({}) being too small\n".format(
+            Y.size)
         msg += "If this is not the case, check Y values or raise an issue with the\n"
         msg += "SALib team"
 
         raise np.linalg.LinAlgError(msg)
+
+    if not groups:
+        S['names'] = problem['names']
+    else:
+        S['names'] = group_names
 
     if print_to_console:
         print(S.to_df())
@@ -102,7 +120,9 @@ def calc_delta(Y, Ygrid, X, m):
     N = len(Y)
     fy = gaussian_kde(Y, bw_method='silverman')(Ygrid)
     abs_fy = np.abs(fy)
-    xr = rankdata(X, method='ordinal')
+
+    ax_ = None if len(X.shape) == 1 else 0
+    xr = rankdata(X, method='ordinal', axis=ax_)
 
     d_hat = 0
     for j in range(len(m) - 1):
@@ -115,7 +135,7 @@ def calc_delta(Y, Ygrid, X, m):
             fy_ = np.abs(fy - fyc)
         else:
             fy_ = abs_fy
-        
+
         d_hat += (nm / (2 * N)) * np.trapz(fy_, Ygrid)
 
     return d_hat
@@ -137,7 +157,9 @@ def bias_reduced_delta(Y, Ygrid, X, m, num_resamples, conf_level):
 
 
 def sobol_first(Y, X, m):
-    xr = rankdata(X, method='ordinal')
+    ax_ = None if len(X.shape) == 1 else 0
+    xr = rankdata(X, method='ordinal', axis=ax_)
+
     Vi = 0
     N = len(Y)
     Y_mean = Y.mean()
